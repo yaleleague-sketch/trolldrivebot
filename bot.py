@@ -12,12 +12,8 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 
 BASE = "https://transphoto.org"
 
-# ============================================================
-# ✅ МЕНЯТЬ ВОТ ТУТ (ФЕЙКОВЫЕ ДАННЫЕ ДЛЯ ПРИМЕРА)
-# ============================================================
-BOT_TOKEN = "PASTE_YOUR_BOTFATHER_TOKEN_HERE"
-TRANSPHOTO_COOKIE = "PASTE_YOUR_TRANSPHOTO_COOKIE_HERE"
-# ============================================================
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+TRANSPHOTO_COOKIE = os.getenv("TRANSPHOTO_COOKIE", "")
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
