@@ -1,4 +1,3 @@
-import os
 import asyncio
 import random
 import re
@@ -10,18 +9,21 @@ from bs4 import BeautifulSoup
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+
 BASE = "https://transphoto.org"
 
-# 👉 ВОТ СЮДА ВСТАВЛЯЕШЬ ТОКЕН
-BOT_TOKEN = "8565327314:AAGu5sVapj_rYklmYeHoX-uHxB7ni2m8Bdg"
-
-# 👉 ВОТ СЮДА ВСТАВЛЯЕШЬ COOKIE
-TRANSPHOTO_COOKIE = "_ga=...; _ga_FSVJTB6RNR=...; _ym_d=...; _ym_isad=...; _ym_uid=...; cf_clearance=..."
+# ============================================================
+# ✅ МЕНЯТЬ ВОТ ТУТ (ФЕЙКОВЫЕ ДАННЫЕ ДЛЯ ПРИМЕРА)
+# ============================================================
+BOT_TOKEN = "PASTE_YOUR_BOTFATHER_TOKEN_HERE"
+TRANSPHOTO_COOKIE = "PASTE_YOUR_TRANSPHOTO_COOKIE_HERE"
+# ============================================================
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
 
 TransportKind = Literal["tram", "trolley", "any"]
+
 
 @dataclass
 class VehicleResult:
@@ -32,7 +34,7 @@ class VehicleResult:
     photo_page: Optional[str]
 
 
-def main_keyboard():
+def main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🚎 Случайный троллейбус", callback_data="rnd:trolley"),
@@ -45,6 +47,8 @@ def main_keyboard():
             InlineKeyboardButton(text="🍀 Мне повезёт (бортовой номер)", callback_data="lucky"),
         ],
     ])
+
+
 def headers(use_cookie: bool = False) -> dict:
     h = {
         "User-Agent": "Mozilla/5.0 (TrollDriveBot/1.0)",
@@ -92,12 +96,12 @@ def detect_kind_from_title(title: str) -> str:
     if "tram" in t or "tramway" in t or "трамвай" in t:
         return "tram"
     return "any"
+
+
 def parse_vehicle_info(vehicle_soup: BeautifulSoup) -> tuple[str, str]:
-    # Заголовок
     h1 = vehicle_soup.find("h1")
     title = h1.get_text(" ", strip=True) if h1 else "Transport"
 
-    # Берём текст страницы и вытаскиваем нужные поля (как на “фото 2”)
     page_text = vehicle_soup.get_text("\n", strip=True)
 
     keys = [
@@ -126,7 +130,6 @@ def parse_vehicle_info(vehicle_soup: BeautifulSoup) -> tuple[str, str]:
 
 
 async def random_photo_page(session: aiohttp.ClientSession) -> str:
-    # Берём главную страницу и выбираем случайную ссылку на /photo/
     home_html = await fetch_html(session, BASE + "/")
     soup = BeautifulSoup(home_html, "html.parser")
     links = [abs_url(a["href"]) for a in soup.select('a[href^="/photo/"]') if a.get("href")]
@@ -136,7 +139,6 @@ async def random_photo_page(session: aiohttp.ClientSession) -> str:
 
 
 async def get_random_vehicle(session: aiohttp.ClientSession, kind: TransportKind) -> VehicleResult:
-    # Пытаемся несколько раз, пока не попадём в нужный тип (трам/тролл)
     for _ in range(25):
         photo_page = await random_photo_page(session)
         photo_html = await fetch_html(session, photo_page)
@@ -154,10 +156,7 @@ async def get_random_vehicle(session: aiohttp.ClientSession, kind: TransportKind
         if kind != "any" and detected != kind:
             continue
 
-        # Фото: берём og:image со страницы фото
         photo_direct = pick_og_image(photo_soup)
-
-        # Добавим ссылки в конец текста
         info_text = info_text + f"\n\nСсылка: {vehicle_url}\nФото: {photo_page}"
 
         return VehicleResult(
@@ -169,17 +168,23 @@ async def get_random_vehicle(session: aiohttp.ClientSession, kind: TransportKind
         )
 
     raise RuntimeError("Не получилось подобрать случайный транспорт, попробуй ещё раз")
-bot = Bot(BOT_TOKEN, parse_mode="Markdown")
+
+
+bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer("TrollDriveBot 🚎🚋\nВыбирай кнопку:", reply_markup=main_keyboard())
+    await message.answer(
+        "TrollDriveBot 🚎🚋\nВыбирай кнопку:",
+        reply_markup=main_keyboard(),
+        parse_mode="Markdown"
+    )
 
 
 @dp.callback_query(F.data.startswith("rnd:"))
-async def cb_random(callback):
+async def cb_random(callback: CallbackQuery):
     kind = callback.data.split(":", 1)[1]  # trolley / tram / any
     await callback.message.answer("Ищу транспорт…")
 
@@ -187,9 +192,9 @@ async def cb_random(callback):
         vr = await get_random_vehicle(session, kind=kind)  # type: ignore
 
     if vr.photo_url:
-        await callback.message.answer_photo(vr.photo_url, caption=vr.info_text)
+        await callback.message.answer_photo(vr.photo_url, caption=vr.info_text, parse_mode="Markdown")
     else:
-        await callback.message.answer(vr.info_text)
+        await callback.message.answer(vr.info_text, parse_mode="Markdown")
 
     await callback.answer()
 
@@ -203,15 +208,14 @@ async def cb_lucky(callback: CallbackQuery):
 @dp.message()
 async def msg_board_number(message: Message):
     text = (message.text or "").strip()
-
-    # Пока: просто проверяем, что это число. Реальный поиск по номеру добавим следующим шагом.
     if not text.isdigit():
         return
 
     await message.answer(
         f"Ок, номер **{text}** принят.\n"
-        f"Дальше подключим поиск по этому номеру через cookies.",
-        reply_markup=main_keyboard()
+        f"Поиск по номеру добавим следующим шагом.",
+        reply_markup=main_keyboard(),
+        parse_mode="Markdown"
     )
 
 
